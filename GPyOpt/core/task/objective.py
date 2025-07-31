@@ -33,12 +33,16 @@ class SingleObjective(Objective):
     """
 
 
-    def __init__(self, func, num_cores = 1, objective_name = 'no_name', batch_type = 'synchronous', space = None):
+
+    def __init__(self, func, num_cores = 1, objective_name = 'no_name', batch_type = 'synchronous',
+                 evaluation_strategy='vector',
+                 space = None):
         self.func  = func
         self.n_procs = num_cores
         self.num_evaluations = 0
         self.space = space
         self.objective_name = objective_name
+        self.evaluation_strategy = evaluation_strategy
 
 
     def evaluate(self, x):
@@ -46,17 +50,29 @@ class SingleObjective(Objective):
         Performs the evaluation of the objective at x.
         """
 
-        if self.n_procs == 1:
-            f_evals, cost_evals = self._eval_func(x)
+        if self.evaluation_strategy == 'vector':
+            f_evals, cost_evals = self._eval_func_vector(x)
         else:
-            try:
-                f_evals, cost_evals = self._syncronous_batch_evaluation(x)
-            except:
-                if not hasattr(self, 'parallel_error'):
-                    print('Error in parallel computation. Fall back to single process!')
-                else:
-                    self.parallel_error = True
+            if self.n_procs == 1:
                 f_evals, cost_evals = self._eval_func(x)
+            else:
+                try:
+                    f_evals, cost_evals = self._syncronous_batch_evaluation(x)
+                except:
+                    if not hasattr(self, 'parallel_error'):
+                        print('Error in parallel computation. Fall back to single process!')
+                    else:
+                        self.parallel_error = True
+                    f_evals, cost_evals = self._eval_func(x)
+
+        return f_evals, cost_evals
+
+    def _eval_func_vector(self, x):
+        """
+        Performs vectorized evaluations of the function at x (single location or batch). Compute time is unreliable.
+        """
+        cost_evals = np.ones(x.shape[0])
+        f_evals = self.func(x)
 
         return f_evals, cost_evals
 
